@@ -4,9 +4,13 @@ set CL=
 set LINK=
 set MASM=
 set COUNTRY=usa-ms
-set BAKROOT=d:
+if exist %TEMP%\setcurd.bat del %TEMP%\setcurd.bat
+copy setcurd.bat %TEMP%\
+cd >> %TEMP%\setcurd.bat
+call %TEMP%\setcurd.bat
+set BAKROOT=%CURRENTDIR%
 rem BAKROOT points to the home drive/directory of the sources.
-set LIB=%BAKROOT%\src\tools\lib
-set INIT=%BAKROOT%\src\tools
-set INCLUDE=%BAKROOT%\src\tools\inc
-set PATH=%BAKROOT%\src\tools
+set LIB=%BAKROOT%\tools\bld\lib
+set INIT=%BAKROOT%\tools
+set INCLUDE=%BAKROOT%\tools\bld\inc
+set PATH=%BAKROOT%\tools;%PATH%
