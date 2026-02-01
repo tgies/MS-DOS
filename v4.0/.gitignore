@@ -1,0 +1,25 @@
+# Build outputs copied to v4.0/ root by cpy.bat
+/*.sys
+/*.com
+/*.exe
+/*.cpi
+/*.pro
+/*.dat
+/*.prt
+/*.hlp
+
+# Intermediate build outputs in src/ (lowercase, created by DOS)
+# Tracked source binaries are uppercase so these don't conflict
+src/**/*.obj
+src/**/*.map
+src/**/*.lst
+src/**/*.sym
+src/**/*.exe
+src/**/*.com
+src/**/*.sys
+src/**/*.cpi
+src/**/*.lib
+src/**/*.cl1
+src/**/*.cl2
+src/**/*.cla
+src/**/*.ctl
