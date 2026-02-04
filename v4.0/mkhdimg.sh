@@ -192,14 +192,16 @@ printf '@ECHO OFF\r\n' > "$STAGING/AUTOEXEC.BAT"
 printf 'PATH C:\\DOS\r\n' >> "$STAGING/AUTOEXEC.BAT"
 
 if $FLOPPY; then
-    # Floppy: just SYS to A:
+    # Floppy: SYS + copy COMMAND.COM to A:
     printf 'ECHO Transferring system to A: ...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'SYS C: A:\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    printf 'COPY C:\\COMMAND.COM A:\\ > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'ECHO Done! Floppy image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
 else
     # Hard disk: SYS + copy all files to D:
     printf 'ECHO Transferring system to D: ...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'SYS C: D:\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    printf 'COPY C:\\COMMAND.COM D:\\ > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'MD D:\\DOS\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'ECHO Copying DOS utilities...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\DOS\\*.* D:\\DOS > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
