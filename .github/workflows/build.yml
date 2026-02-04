@@ -31,7 +31,7 @@ jobs:
             https://github.com/tgies/comcom64.git /tmp/comcom64
           cd /tmp/comcom64
           make
-          sudo make install
+          sudo make install prefix=/usr
 
       - name: Build DOS 4
         run: |
