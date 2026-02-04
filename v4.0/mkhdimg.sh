@@ -50,9 +50,9 @@ done
 
 if [ -z "$OUTPUT" ]; then
     if $FLOPPY; then
-        OUTPUT="dos4-boot.img"
+        OUTPUT="$SCRIPT_DIR/dos4-boot.img"
     else
-        OUTPUT="dos4.img"
+        OUTPUT="$SCRIPT_DIR/dos4.img"
     fi
 fi
 
