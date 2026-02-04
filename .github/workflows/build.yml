@@ -15,11 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dosemu2
+      - name: Install dosemu2 and mtools
         run: |
           sudo add-apt-repository -y ppa:dosemu2/ppa
           sudo apt-get update
-          sudo apt-get install -y dosemu2
+          sudo apt-get install -y dosemu2 mtools
 
       # Workaround for https://github.com/dosemu2/comcom64/pull/117
       # Remove once merged and released in dosemu2
@@ -39,6 +39,12 @@ jobs:
           cd v4.0
           timeout 3600 ./mak.sh
 
+      - name: Create hard disk image
+        run: timeout 300 ./v4.0/mkhdimg.sh
+
+      - name: Create boot floppy
+        run: timeout 300 ./v4.0/mkhdimg.sh --floppy
+
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
@@ -52,3 +58,12 @@ jobs:
             v4.0/*.dat
             v4.0/*.prt
             v4.0/*.hlp
+
+      - name: Upload disk images
+        uses: actions/upload-artifact@v4
+        with:
+          name: dos4-disk-images
+          path: |
+            v4.0/dos4.img
+            v4.0/dos4.raw.img
+            v4.0/dos4-boot.img
