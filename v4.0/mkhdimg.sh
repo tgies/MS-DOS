@@ -113,7 +113,7 @@ if [ -z "$OUTPUT" ]; then
     if [ "$FLAVOR" = "pcdos" ]; then
         IMGBASE="pcdos4"
     else
-        IMGBASE="dos4"
+        IMGBASE="msdos4"
     fi
     if $FLOPPY; then
         OUTPUT="$SCRIPT_DIR/${IMGBASE}-boot.img"
