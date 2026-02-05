@@ -327,6 +327,11 @@ if $FLOPPY; then
         UTIL_COUNT=$(($(ls "$STAGING/DOS/" 2>/dev/null | wc -l) - 1))  # -1 for SYS.COM which is always there
         STAGED_SIZE=$(calculate_staged_size)
         echo "  Selected $UTIL_COUNT utilities ($(( STAGED_SIZE / 1024 ))KB staged)"
+
+        # Create AUTOEXEC.BAT for the target floppy (will be copied in dosemu phase)
+        printf '@ECHO OFF\r\n' > "$STAGING/REAL_AE.BAT"
+        printf 'PROMPT $p$g\r\n' >> "$STAGING/REAL_AE.BAT"
+        printf 'PATH A:\\DOS\r\n' >> "$STAGING/REAL_AE.BAT"
     fi
 else
     # Hard disk image: full file layout
@@ -435,6 +440,8 @@ if $FLOPPY; then
                 fi
             done
         fi
+        # Copy AUTOEXEC.BAT to floppy root
+        printf 'COPY C:\\REAL_AE.BAT A:\\AUTOEXEC.BAT > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     fi
 
     printf 'ECHO Done! Floppy image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
