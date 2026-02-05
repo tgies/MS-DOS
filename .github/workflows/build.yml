@@ -15,11 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dosemu2 and mtools
+      - name: Install dosemu2, mtools, and QEMU
         run: |
           sudo add-apt-repository -y ppa:dosemu2/ppa
           sudo apt-get update
-          sudo apt-get install -y dosemu2 mtools
+          sudo apt-get install -y dosemu2 mtools qemu-system-x86
 
       # Workaround for https://github.com/dosemu2/comcom64/pull/117
       # Remove once merged and released in dosemu2
@@ -42,8 +42,49 @@ jobs:
       - name: Create hard disk image
         run: timeout 300 ./v4.0/mkhdimg.sh
 
-      - name: Create boot floppy
-        run: timeout 300 ./v4.0/mkhdimg.sh --floppy
+      - name: Create floppy images (all sizes)
+        run: |
+          # Minimal floppies (system files only)
+          timeout 300 ./v4.0/mkhdimg.sh --floppy -o v4.0/dos4-boot-1440.img
+
+          # Full floppies with utilities
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=360 --floppy-full -o v4.0/dos4-boot-360-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=720 --floppy-full -o v4.0/dos4-boot-720-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=1200 --floppy-full -o v4.0/dos4-boot-1200-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=1440 --floppy-full -o v4.0/dos4-boot-1440-full.img
+
+      - name: Boot test - HD image
+        run: |
+          timeout 10 qemu-system-i386 \
+            -drive file=v4.0/dos4.raw.img,format=raw \
+            -boot c -nographic \
+            2>&1 | tee /tmp/qemu-hd.log || true
+          # Verify we got to DOS prompt
+          grep -q 'C:\\>' /tmp/qemu-hd.log || grep -q 'Current date' /tmp/qemu-hd.log
+
+      - name: Boot test - 360KB floppy
+        run: |
+          timeout 10 qemu-system-i386 \
+            -fda v4.0/dos4-boot-360-full.img \
+            -boot a -nographic \
+            2>&1 | tee /tmp/qemu-360.log || true
+          grep -q 'Current date' /tmp/qemu-360.log
+
+      - name: Boot test - 720KB floppy
+        run: |
+          timeout 10 qemu-system-i386 \
+            -fda v4.0/dos4-boot-720-full.img \
+            -boot a -nographic \
+            2>&1 | tee /tmp/qemu-720.log || true
+          grep -q 'Current date' /tmp/qemu-720.log
+
+      - name: Boot test - 1.44MB floppy
+        run: |
+          timeout 10 qemu-system-i386 \
+            -fda v4.0/dos4-boot-1440-full.img \
+            -boot a -nographic \
+            2>&1 | tee /tmp/qemu-1440.log || true
+          grep -q 'Current date' /tmp/qemu-1440.log
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
@@ -66,4 +107,4 @@ jobs:
           path: |
             v4.0/dos4.img
             v4.0/dos4.raw.img
-            v4.0/dos4-boot.img
+            v4.0/dos4-boot-*.img

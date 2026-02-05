@@ -5,8 +5,10 @@
 # Produces bootable disk images from the compiled binaries in this directory.
 #
 # Image types:
-#   (default)  FAT16 hard disk image (bootable in QEMU, dosemu, VirtualBox)
-#   --floppy   Minimal 1.44MB FAT12 boot floppy (IO.SYS, MSDOS.SYS, COMMAND.COM)
+#   (default)        FAT16 hard disk image (bootable in QEMU, dosemu, VirtualBox)
+#   --floppy         Minimal 1.44MB FAT12 boot floppy (system files only)
+#   --floppy=SIZE    Floppy of specified size (360, 720, 1200, 1440)
+#   --floppy-full    Include utilities that fit on the floppy
 #
 # Strategy: Uses dosemu with mkfatimage16 to create a properly formatted
 # disk image, then runs SYS inside dosemu to write the authentic MS-DOS 4
@@ -20,16 +22,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT=""
 SIZE_KB=65536  # 64MB in KB
 FLOPPY=false
+FLOPPY_SIZE=1440  # KB (options: 360, 720, 1200, 1440)
+FLOPPY_FULL=false
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--floppy] [-o output.img] [--size SIZE_MB]
+Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  --floppy       Create a minimal 1.44MB boot floppy instead of a hard disk
-  -o FILE        Output image file (default: dos4.img)
-  --size SIZE    Disk size in MB (default: 64, ignored for --floppy)
-  -h, --help     Show this help
+  --floppy[=SIZE]  Create a boot floppy (default: 1440KB)
+                   SIZE can be: 360, 720, 1200, 1440
+  --floppy-full    Include utilities that fit (default: system files only)
+  -o FILE          Output image file (default: dos4.img or dos4-boot.img)
+  --size SIZE      Hard disk size in MB (default: 64, ignored for --floppy)
+  -h, --help       Show this help
+
+Floppy sizes:
+  360KB   5.25" DD - System + essential utilities only
+  720KB   3.5" DD  - System + most utilities
+  1200KB  5.25" HD - System + all utilities
+  1440KB  3.5" HD  - System + all utilities (default)
 
 The binaries must be present in this directory (run the build first).
 Requires: dosemu2, mtools, mkfatimage16
@@ -40,11 +52,38 @@ EOF
 # Parse arguments
 while [ $# -gt 0 ]; do
     case "$1" in
-        --floppy) FLOPPY=true; shift ;;
-        -o)       OUTPUT="$2"; shift 2 ;;
-        --size)   SIZE_KB=$(( $2 * 1024 )); shift 2 ;;
-        -h|--help) usage 0 ;;
-        *) echo "Unknown option: $1" >&2; usage 1 ;;
+        --floppy)
+            FLOPPY=true
+            shift
+            ;;
+        --floppy=*)
+            FLOPPY=true
+            FLOPPY_SIZE="${1#--floppy=}"
+            case "$FLOPPY_SIZE" in
+                360|720|1200|1440) ;;
+                *) echo "Error: Invalid floppy size: $FLOPPY_SIZE (use 360, 720, 1200, 1440)" >&2; exit 1 ;;
+            esac
+            shift
+            ;;
+        --floppy-full)
+            FLOPPY_FULL=true
+            shift
+            ;;
+        -o)
+            OUTPUT="$2"
+            shift 2
+            ;;
+        --size)
+            SIZE_KB=$(( $2 * 1024 ))
+            shift 2
+            ;;
+        -h|--help)
+            usage 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage 1
+            ;;
     esac
 done
 
@@ -65,7 +104,7 @@ for f in io.sys msdos.sys command.com; do
 done
 
 if $FLOPPY; then
-    REQUIRED_CMDS="dosemu mformat"
+    REQUIRED_CMDS="dosemu mformat mcopy"
 else
     REQUIRED_CMDS="dosemu mkfatimage16"
 fi
@@ -76,9 +115,45 @@ for cmd in $REQUIRED_CMDS; do
     fi
 done
 
+# Calculate floppy capacity and format parameters
+if $FLOPPY; then
+    case "$FLOPPY_SIZE" in
+        360)
+            FLOPPY_SECTORS=720      # 360KB / 512 bytes
+            FLOPPY_DESC="360KB (5.25\" DD)"
+            FLOPPY_CAPACITY=368640  # Usable bytes (approx)
+            MFORMAT_OPTS="-f 360"
+            ;;
+        720)
+            FLOPPY_SECTORS=1440     # 720KB / 512 bytes
+            FLOPPY_DESC="720KB (3.5\" DD)"
+            FLOPPY_CAPACITY=737280
+            MFORMAT_OPTS="-f 720"
+            ;;
+        1200)
+            FLOPPY_SECTORS=2400     # 1.2MB / 512 bytes
+            FLOPPY_DESC="1.2MB (5.25\" HD)"
+            FLOPPY_CAPACITY=1228800
+            MFORMAT_OPTS="-f 1200"
+            ;;
+        1440)
+            FLOPPY_SECTORS=2880     # 1.44MB / 512 bytes
+            FLOPPY_DESC="1.44MB (3.5\" HD)"
+            FLOPPY_CAPACITY=1474560
+            MFORMAT_OPTS="-f 1440"
+            ;;
+    esac
+fi
+
 if $FLOPPY; then
     echo "Creating MS-DOS 4 boot floppy image..."
     echo "  Output: $OUTPUT"
+    echo "  Size:   $FLOPPY_DESC"
+    if $FLOPPY_FULL; then
+        echo "  Mode:   Full (utilities included)"
+    else
+        echo "  Mode:   Minimal (system files only)"
+    fi
 else
     echo "Creating MS-DOS 4 hard disk image..."
     echo "  Output: $OUTPUT"
@@ -101,10 +176,124 @@ cp "$SCRIPT_DIR/io.sys"      "$STAGING/IO.SYS"
 cp "$SCRIPT_DIR/msdos.sys"   "$STAGING/MSDOS.SYS"
 cp "$SCRIPT_DIR/command.com" "$STAGING/COMMAND.COM"
 
+# Define utility tiers for floppy images (in priority order)
+# Tier 1: Essential - must have on any bootable disk
+TIER1_COM="format sys"
+TIER1_EXE="fdisk"
+
+# Tier 2: Important utilities
+TIER2_COM="debug chkdsk edlin mode"
+TIER2_EXE="attrib xcopy"
+
+# Tier 3: Additional utilities
+TIER3_COM="comp diskcopy diskcomp more print recover tree label assign backup restore graphics graftabl keyb"
+TIER3_EXE="fc find sort mem append fastopen replace share subst join"
+
+# Tier 4: Drivers (less critical for boot floppy)
+TIER4_SYS="ansi display driver keyboard"
+TIER4_CPI="ega"
+
+# Tier 5: Large/optional files
+# Note: SELECT installer not available (depends on unreleased DOS Shell source)
+TIER5_EXE="filesys nlsfunc exe2bin"
+TIER5_SYS="country printer smartdrv ramdrive xma2ems xmaem emm386"
+TIER5_CPI="lcd 4201 4208 5202"
+
+# Function to calculate size of files to copy
+calculate_staged_size() {
+    local total=0
+    local f
+    for f in "$STAGING"/* "$STAGING/DOS"/*; do
+        [ -f "$f" ] && total=$((total + $(stat -c%s "$f")))
+    done
+    echo "$total"
+}
+
+# Function to try copying a file if it exists and fits
+try_copy_file() {
+    local src="$1"
+    local dst="$2"
+    local capacity="$3"
+
+    if [ ! -f "$src" ]; then
+        return 1
+    fi
+
+    local filesize=$(stat -c%s "$src")
+    local current_size=$(calculate_staged_size)
+    local projected=$((current_size + filesize))
+
+    # Leave 10KB buffer for filesystem overhead
+    if [ $projected -lt $((capacity - 10240)) ]; then
+        cp "$src" "$dst"
+        return 0
+    fi
+    return 1
+}
+
 if $FLOPPY; then
-    # Floppy only needs SYS.COM in the DOS directory so the staging
-    # boot can find it on PATH
+    # Always copy SYS.COM for the dosemu staging boot
     cp "$SCRIPT_DIR/sys.com" "$STAGING/DOS/SYS.COM"
+
+    if $FLOPPY_FULL; then
+        echo "Selecting utilities for ${FLOPPY_SIZE}KB floppy..."
+
+        # Tier 1: Essential (always try to include)
+        for f in $TIER1_COM; do
+            try_copy_file "$SCRIPT_DIR/$f.com" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').COM" "$FLOPPY_CAPACITY" || true
+        done
+        for f in $TIER1_EXE; do
+            try_copy_file "$SCRIPT_DIR/$f.exe" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').EXE" "$FLOPPY_CAPACITY" || true
+        done
+
+        # Tier 2: Important
+        for f in $TIER2_COM; do
+            try_copy_file "$SCRIPT_DIR/$f.com" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').COM" "$FLOPPY_CAPACITY" || true
+        done
+        for f in $TIER2_EXE; do
+            try_copy_file "$SCRIPT_DIR/$f.exe" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').EXE" "$FLOPPY_CAPACITY" || true
+        done
+
+        # Tier 3: Additional (skip on 360KB to leave room)
+        if [ "$FLOPPY_SIZE" -ge 720 ]; then
+            for f in $TIER3_COM; do
+                try_copy_file "$SCRIPT_DIR/$f.com" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').COM" "$FLOPPY_CAPACITY" || true
+            done
+            for f in $TIER3_EXE; do
+                try_copy_file "$SCRIPT_DIR/$f.exe" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').EXE" "$FLOPPY_CAPACITY" || true
+            done
+        fi
+
+        # Tier 4: Drivers (720KB+)
+        if [ "$FLOPPY_SIZE" -ge 720 ]; then
+            for f in $TIER4_SYS; do
+                try_copy_file "$SCRIPT_DIR/$f.sys" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').SYS" "$FLOPPY_CAPACITY" || true
+            done
+            for f in $TIER4_CPI; do
+                try_copy_file "$SCRIPT_DIR/$f.cpi" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').CPI" "$FLOPPY_CAPACITY" || true
+            done
+        fi
+
+        # Tier 5: Large/optional (1.2MB+)
+        if [ "$FLOPPY_SIZE" -ge 1200 ]; then
+            for f in $TIER5_EXE; do
+                try_copy_file "$SCRIPT_DIR/$f.exe" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').EXE" "$FLOPPY_CAPACITY" || true
+            done
+            for f in $TIER5_SYS; do
+                try_copy_file "$SCRIPT_DIR/$f.sys" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').SYS" "$FLOPPY_CAPACITY" || true
+            done
+            for f in $TIER5_CPI; do
+                try_copy_file "$SCRIPT_DIR/$f.cpi" "$STAGING/DOS/$(echo $f | tr 'a-z' 'A-Z').CPI" "$FLOPPY_CAPACITY" || true
+            done
+        fi
+
+        # Add helper files if there's room
+        try_copy_file "$SCRIPT_DIR/graphics.pro" "$STAGING/DOS/GRAPHICS.PRO" "$FLOPPY_CAPACITY" || true
+
+        UTIL_COUNT=$(($(ls "$STAGING/DOS/" 2>/dev/null | wc -l) - 1))  # -1 for SYS.COM which is always there
+        STAGED_SIZE=$(calculate_staged_size)
+        echo "  Selected $UTIL_COUNT utilities ($(( STAGED_SIZE / 1024 ))KB staged)"
+    fi
 else
     # Hard disk image: full file layout
 
@@ -161,9 +350,9 @@ fi
 echo "Creating disk image..."
 
 if $FLOPPY; then
-    # Create a blank 1.44MB raw floppy image and format as FAT12
-    dd if=/dev/zero of="$TMPDIR/floppy.img" bs=512 count=2880 2>/dev/null
-    mformat -f 1440 -v MSDOS4 -i "$TMPDIR/floppy.img" ::
+    # Create a blank floppy image and format as FAT12
+    dd if=/dev/zero of="$TMPDIR/floppy.img" bs=512 count="$FLOPPY_SECTORS" 2>/dev/null
+    mformat $MFORMAT_OPTS -v MSDOS4 -i "$TMPDIR/floppy.img" ::
 else
     # mkfatimage16 creates a dosemu-compatible hdimage with MBR + FAT16 partition
     mkfatimage16 -l MSDOS4 -k "$SIZE_KB" -f "$TMPDIR/target.img" -p
@@ -192,10 +381,28 @@ printf '@ECHO OFF\r\n' > "$STAGING/AUTOEXEC.BAT"
 printf 'PATH C:\\DOS\r\n' >> "$STAGING/AUTOEXEC.BAT"
 
 if $FLOPPY; then
-    # Floppy: SYS + copy COMMAND.COM to A:
+    # Floppy: SYS + copy COMMAND.COM + utilities to A:
     printf 'ECHO Transferring system to A: ...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'SYS C: A:\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\COMMAND.COM A:\\ > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
+
+    if $FLOPPY_FULL; then
+        # Copy utilities to floppy (they're in STAGING/DOS)
+        # Count how many we have (excluding SYS.COM which stays on staging drive)
+        UTIL_COUNT=$(($(ls "$STAGING/DOS/" 2>/dev/null | wc -l) - 1))
+        if [ "$UTIL_COUNT" -gt 0 ]; then
+            printf 'ECHO Copying utilities...\r\n' >> "$STAGING/AUTOEXEC.BAT"
+            printf 'MD A:\\DOS\r\n' >> "$STAGING/AUTOEXEC.BAT"
+            # Copy everything except SYS.COM (needed by staging, not target)
+            for f in "$STAGING/DOS/"*; do
+                fname=$(basename "$f")
+                if [ "$fname" != "SYS.COM" ]; then
+                    printf 'COPY C:\\DOS\\%s A:\\DOS > NUL\r\n' "$fname" >> "$STAGING/AUTOEXEC.BAT"
+                fi
+            done
+        fi
+    fi
+
     printf 'ECHO Done! Floppy image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
 else
     # Hard disk: SYS + copy all files to D:
@@ -208,9 +415,11 @@ else
     printf 'ECHO Copying root files...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\REAL_CF.SYS D:\\CONFIG.SYS > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\REAL_AE.BAT D:\\AUTOEXEC.BAT > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    # DOS 4 ATTRIB only supports +R/-R and +A/-A (no +H/+S)
+    # System/hidden attributes are set by SYS command anyway
     printf 'ECHO Setting file attributes...\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    printf 'ATTRIB +R +H +S D:\\IO.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    printf 'ATTRIB +R +H +S D:\\MSDOS.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    printf 'ATTRIB +R D:\\IO.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    printf 'ATTRIB +R D:\\MSDOS.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'ATTRIB +R D:\\COMMAND.COM\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'ECHO Done! Image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
 fi
@@ -219,9 +428,16 @@ printf 'exitemu\r\n' >> "$STAGING/AUTOEXEC.BAT"
 # Create dosemu config
 if $FLOPPY; then
     # Staging dir is C: (boot drive), floppy image is A:
+    # Determine floppy type for dosemu
+    case "$FLOPPY_SIZE" in
+        360)  FLOPPY_TYPE="fiveinch" ;;
+        720)  FLOPPY_TYPE="threeinch" ;;
+        1200) FLOPPY_TYPE="fiveinch" ;;
+        1440) FLOPPY_TYPE="threeinch" ;;
+    esac
     cat > "$TMPDIR/dosemurc" << EOF
 \$_hdimage = "$STAGING"
-\$_floppy_a = "$TMPDIR/floppy.img:threeinch"
+\$_floppy_a = "$TMPDIR/floppy.img:$FLOPPY_TYPE"
 EOF
 else
     # Staging dir is C: (boot drive), target image is D:
@@ -242,10 +458,15 @@ if $FLOPPY; then
     echo ""
     echo "Success!"
     echo ""
-    echo "  Type:     1.44MB boot floppy"
-    echo "  Files:    IO.SYS, MSDOS.SYS, COMMAND.COM"
+    echo "  Type:     $FLOPPY_DESC boot floppy"
+    if $FLOPPY_FULL; then
+        FINAL_UTIL_COUNT=$(($(ls "$STAGING/DOS/" 2>/dev/null | wc -l) - 1))
+        echo "  Files:    IO.SYS, MSDOS.SYS, COMMAND.COM + $FINAL_UTIL_COUNT utilities"
+    else
+        echo "  Files:    IO.SYS, MSDOS.SYS, COMMAND.COM"
+    fi
     echo ""
-    echo "  $OUTPUT   (raw 1.44MB floppy image)"
+    echo "  $OUTPUT"
     echo ""
     echo "To boot with dosemu:"
     echo "  dosemu -f <(echo '\$_floppy_a = \"$OUTPUT:boot\"')"
