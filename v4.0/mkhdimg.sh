@@ -27,7 +27,7 @@ FLOPPY_FULL=false
 
 # Auto-detect build flavor from which system files exist
 # PC-DOS: IBMBIO.COM, IBMDOS.COM
-# Clone/MS-DOS: IO.SYS, MSDOS.SYS
+# MS-DOS: IO.SYS, MSDOS.SYS
 if [ -f "$SCRIPT_DIR/ibmbio.com" ] && [ -f "$SCRIPT_DIR/ibmdos.com" ]; then
     FLAVOR="pcdos"
     BIO_SYS="ibmbio.com"
@@ -35,14 +35,14 @@ if [ -f "$SCRIPT_DIR/ibmbio.com" ] && [ -f "$SCRIPT_DIR/ibmdos.com" ]; then
     BIO_SYS_UPPER="IBMBIO.COM"
     DOS_SYS_UPPER="IBMDOS.COM"
 elif [ -f "$SCRIPT_DIR/io.sys" ] && [ -f "$SCRIPT_DIR/msdos.sys" ]; then
-    FLAVOR="clone"
+    FLAVOR="msdos"
     BIO_SYS="io.sys"
     DOS_SYS="msdos.sys"
     BIO_SYS_UPPER="IO.SYS"
     DOS_SYS_UPPER="MSDOS.SYS"
 else
     echo "Error: System files not found. Run the build first." >&2
-    echo "  Expected: io.sys + msdos.sys (Clone) or ibmbio.com + ibmdos.com (PC-DOS)" >&2
+    echo "  Expected: io.sys + msdos.sys (MS-DOS) or ibmbio.com + ibmdos.com (PC-DOS)" >&2
     exit 1
 fi
 

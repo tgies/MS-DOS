@@ -38,15 +38,21 @@ cd v4.0
 
 ## Build Flavors
 
-The source code supports three build configurations via `src/INC/VERSION.INC`:
+The source code supports multiple build configurations. Use the `--flavor` flag:
 
-| Flavor | IBMVER | IBMCOPYRIGHT | System Files | Description |
-|--------|--------|--------------|--------------|-------------|
-| **Clone** | TRUE | FALSE | IO.SYS, MSDOS.SYS | OEM version for IBM-compatible PCs (default) |
-| IBM PC-DOS | TRUE | TRUE | IBMBIO.COM, IBMDOS.COM | Official IBM version |
-| MS-DOS (portable) | FALSE | FALSE | IO.SYS, MSDOS.SYS | For non-IBM-compatible hardware |
+```bash
+./mak.sh                    # Build MS-DOS (default)
+./mak.sh --flavor=pcdos     # Build IBM PC-DOS
+```
 
-The default build produces the **Clone** flavor, which is what OEMs like Compaq and HP shipped as "MS-DOS 4.01" on their IBM-compatible PCs. This uses IBM PC hardware assumptions but MS-DOS branding.
+| Flavor | System Files | Description |
+|--------|--------------|-------------|
+| **msdos** | IO.SYS, MSDOS.SYS | OEM MS-DOS for IBM-compatible PCs (default) |
+| **pcdos** | IBMBIO.COM, IBMDOS.COM | IBM PC-DOS |
+
+Both flavors include IBM PC hardware-specific code (INT 10H video BIOS, 8259 PIC, PCjr ROM cartridge support). The difference is branding and system file names.
+
+The default **msdos** flavor is what OEMs like Compaq, Dell, and HP shipped as "MS-DOS" on their IBM-compatible PCs.
 
 ## Disk Image Options
 
@@ -66,7 +72,7 @@ The default build produces the **Clone** flavor, which is what OEMs like Compaq 
 ## Known Limitations
 
 - **DOS Shell not included**: The DOS Shell (DOSSHELL) source code was not open-sourced, so SELECT.EXE (the installer) cannot be built.
-- **MS-DOS portable build**: The `IBMVER=FALSE` configuration may have build issues (needs investigation).
+- **Non-IBM-compatible build**: A third configuration (`IBMVER=FALSE`) exists in the source for non-IBM-compatible hardware, but it doesn't build successfully.
 
 # Trademarks
 

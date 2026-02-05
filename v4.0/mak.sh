@@ -4,10 +4,10 @@
 
 # Build MS-DOS 4.0
 #
-# Usage: ./mak.sh [--flavor=clone|pcdos] [--clean]
+# Usage: ./mak.sh [--flavor=msdos|pcdos] [--clean]
 #
 # Build flavors:
-#   clone  - OEM MS-DOS with IO.SYS/MSDOS.SYS (default)
+#   msdos  - OEM MS-DOS with IO.SYS/MSDOS.SYS (default)
 #   pcdos  - IBM PC-DOS with IBMBIO.COM/IBMDOS.COM
 
 set -e
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Default values
-FLAVOR="clone"
+FLAVOR="msdos"
 DO_CLEAN=false
 
 # Parse arguments
@@ -29,10 +29,10 @@ while [[ $# -gt 0 ]]; do
             DO_CLEAN=true
             ;;
         -h|--help)
-            echo "Usage: $0 [--flavor=clone|pcdos] [--clean]"
+            echo "Usage: $0 [--flavor=msdos|pcdos] [--clean]"
             echo ""
             echo "Build flavors:"
-            echo "  clone  - OEM MS-DOS with IO.SYS/MSDOS.SYS (default)"
+            echo "  msdos  - OEM MS-DOS with IO.SYS/MSDOS.SYS (default)"
             echo "  pcdos  - IBM PC-DOS with IBMBIO.COM/IBMDOS.COM"
             echo ""
             echo "Options:"
@@ -49,10 +49,10 @@ done
 
 # Validate flavor
 case "$FLAVOR" in
-    clone|pcdos)
+    msdos|pcdos)
         ;;
     *)
-        echo "Error: Invalid flavor '$FLAVOR'. Must be 'clone' or 'pcdos'." >&2
+        echo "Error: Invalid flavor '$FLAVOR'. Must be 'msdos' or 'pcdos'." >&2
         exit 1
         ;;
 esac
@@ -66,13 +66,13 @@ VERSION_INC="$SCRIPT_DIR/src/INC/VERSION.INC"
 cp "$VERSION_INC" "$VERSION_INC.bak"
 
 # Set IBMCOPYRIGHT based on flavor
-# Clone: IBMCOPYRIGHT = FALSE (default in source)
+# MS-DOS: IBMCOPYRIGHT = FALSE (default in source)
 # PC-DOS: IBMCOPYRIGHT = TRUE
 if [[ "$FLAVOR" == "pcdos" ]]; then
     echo "Patching VERSION.INC for PC-DOS build..."
     sed -i 's/^IBMCOPYRIGHT EQU[[:space:]]*FALSE/IBMCOPYRIGHT EQU   TRUE/' "$VERSION_INC"
 else
-    echo "Using default VERSION.INC for Clone build..."
+    echo "Using default VERSION.INC for MS-DOS build..."
     # Ensure it's set to FALSE (in case it was left in PC-DOS state)
     sed -i 's/^IBMCOPYRIGHT EQU[[:space:]]*TRUE/IBMCOPYRIGHT EQU   FALSE/' "$VERSION_INC"
 fi
