@@ -25,6 +25,27 @@ FLOPPY=false
 FLOPPY_SIZE=1440  # KB (options: 360, 720, 1200, 1440)
 FLOPPY_FULL=false
 
+# Auto-detect build flavor from which system files exist
+# PC-DOS: IBMBIO.COM, IBMDOS.COM
+# Clone/MS-DOS: IO.SYS, MSDOS.SYS
+if [ -f "$SCRIPT_DIR/ibmbio.com" ] && [ -f "$SCRIPT_DIR/ibmdos.com" ]; then
+    FLAVOR="pcdos"
+    BIO_SYS="ibmbio.com"
+    DOS_SYS="ibmdos.com"
+    BIO_SYS_UPPER="IBMBIO.COM"
+    DOS_SYS_UPPER="IBMDOS.COM"
+elif [ -f "$SCRIPT_DIR/io.sys" ] && [ -f "$SCRIPT_DIR/msdos.sys" ]; then
+    FLAVOR="clone"
+    BIO_SYS="io.sys"
+    DOS_SYS="msdos.sys"
+    BIO_SYS_UPPER="IO.SYS"
+    DOS_SYS_UPPER="MSDOS.SYS"
+else
+    echo "Error: System files not found. Run the build first." >&2
+    echo "  Expected: io.sys + msdos.sys (Clone) or ibmbio.com + ibmdos.com (PC-DOS)" >&2
+    exit 1
+fi
+
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -87,21 +108,25 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Set default output name based on flavor
 if [ -z "$OUTPUT" ]; then
-    if $FLOPPY; then
-        OUTPUT="$SCRIPT_DIR/dos4-boot.img"
+    if [ "$FLAVOR" = "pcdos" ]; then
+        IMGBASE="pcdos4"
     else
-        OUTPUT="$SCRIPT_DIR/dos4.img"
+        IMGBASE="dos4"
+    fi
+    if $FLOPPY; then
+        OUTPUT="$SCRIPT_DIR/${IMGBASE}-boot.img"
+    else
+        OUTPUT="$SCRIPT_DIR/${IMGBASE}.img"
     fi
 fi
 
-# Sanity checks - verify key system files exist
-for f in io.sys msdos.sys command.com; do
-    if [ ! -f "$SCRIPT_DIR/$f" ]; then
-        echo "Error: $f not found. Run the build first." >&2
-        exit 1
-    fi
-done
+# Sanity check - verify COMMAND.COM exists (system files already checked above)
+if [ ! -f "$SCRIPT_DIR/command.com" ]; then
+    echo "Error: command.com not found. Run the build first." >&2
+    exit 1
+fi
 
 if $FLOPPY; then
     REQUIRED_CMDS="dosemu mformat mcopy"
@@ -145,9 +170,17 @@ if $FLOPPY; then
     esac
 fi
 
+# Display flavor name for output
+if [ "$FLAVOR" = "pcdos" ]; then
+    FLAVOR_NAME="IBM PC-DOS 4"
+else
+    FLAVOR_NAME="MS-DOS 4"
+fi
+
 if $FLOPPY; then
-    echo "Creating MS-DOS 4 boot floppy image..."
+    echo "Creating $FLAVOR_NAME boot floppy image..."
     echo "  Output: $OUTPUT"
+    echo "  Flavor: $FLAVOR_NAME ($BIO_SYS_UPPER, $DOS_SYS_UPPER)"
     echo "  Size:   $FLOPPY_DESC"
     if $FLOPPY_FULL; then
         echo "  Mode:   Full (utilities included)"
@@ -155,8 +188,9 @@ if $FLOPPY; then
         echo "  Mode:   Minimal (system files only)"
     fi
 else
-    echo "Creating MS-DOS 4 hard disk image..."
+    echo "Creating $FLAVOR_NAME hard disk image..."
     echo "  Output: $OUTPUT"
+    echo "  Flavor: $FLAVOR_NAME ($BIO_SYS_UPPER, $DOS_SYS_UPPER)"
     echo "  Size:   $(( SIZE_KB / 1024 ))MB"
 fi
 
@@ -171,9 +205,9 @@ mkdir -p "$STAGING/DOS"
 
 echo "Preparing staging directory..."
 
-# Copy system files to root
-cp "$SCRIPT_DIR/io.sys"      "$STAGING/IO.SYS"
-cp "$SCRIPT_DIR/msdos.sys"   "$STAGING/MSDOS.SYS"
+# Copy system files to root (using detected flavor names)
+cp "$SCRIPT_DIR/$BIO_SYS"    "$STAGING/$BIO_SYS_UPPER"
+cp "$SCRIPT_DIR/$DOS_SYS"    "$STAGING/$DOS_SYS_UPPER"
 cp "$SCRIPT_DIR/command.com" "$STAGING/COMMAND.COM"
 
 # Define utility tiers for floppy images (in priority order)
@@ -415,12 +449,9 @@ else
     printf 'ECHO Copying root files...\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\REAL_CF.SYS D:\\CONFIG.SYS > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     printf 'COPY C:\\REAL_AE.BAT D:\\AUTOEXEC.BAT > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    # DOS 4 ATTRIB only supports +R/-R and +A/-A (no +H/+S)
-    # System/hidden attributes are set by SYS command anyway
-    printf 'ECHO Setting file attributes...\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    printf 'ATTRIB +R D:\\IO.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    printf 'ATTRIB +R D:\\MSDOS.SYS\r\n' >> "$STAGING/AUTOEXEC.BAT"
-    printf 'ATTRIB +R D:\\COMMAND.COM\r\n' >> "$STAGING/AUTOEXEC.BAT"
+    # Note: System files (IO.SYS/IBMBIO.COM, MSDOS.SYS/IBMDOS.COM) are given
+    # Hidden+System+ReadOnly attributes by SYS.COM automatically.
+    # COMMAND.COM doesn't need special attributes.
     printf 'ECHO Done! Image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
 fi
 printf 'exitemu\r\n' >> "$STAGING/AUTOEXEC.BAT"
@@ -447,7 +478,8 @@ EOF
 fi
 
 # Run dosemu in dumb terminal mode
-dosemu -f "$TMPDIR/dosemurc" -dumb -td -kt < /dev/null
+# TERM=dumb prevents dosemu from enabling xterm mouse tracking
+TERM=dumb dosemu -f "$TMPDIR/dosemurc" -dumb -td -kt < /dev/null
 
 # --- Phase 4: Finalize ---
 
@@ -458,12 +490,12 @@ if $FLOPPY; then
     echo ""
     echo "Success!"
     echo ""
-    echo "  Type:     $FLOPPY_DESC boot floppy"
+    echo "  Type:     $FLOPPY_DESC boot floppy ($FLAVOR_NAME)"
     if $FLOPPY_FULL; then
         FINAL_UTIL_COUNT=$(($(ls "$STAGING/DOS/" 2>/dev/null | wc -l) - 1))
-        echo "  Files:    IO.SYS, MSDOS.SYS, COMMAND.COM + $FINAL_UTIL_COUNT utilities"
+        echo "  Files:    $BIO_SYS_UPPER, $DOS_SYS_UPPER, COMMAND.COM + $FINAL_UTIL_COUNT utilities"
     else
-        echo "  Files:    IO.SYS, MSDOS.SYS, COMMAND.COM"
+        echo "  Files:    $BIO_SYS_UPPER, $DOS_SYS_UPPER, COMMAND.COM"
     fi
     echo ""
     echo "  $OUTPUT"
@@ -487,6 +519,7 @@ else
     echo ""
     echo "Success!"
     echo ""
+    echo "  Flavor:   $FLAVOR_NAME ($BIO_SYS_UPPER, $DOS_SYS_UPPER)"
     echo "  Size:     $(( SIZE_KB / 1024 ))MB"
     echo "  Files:    $NUM_FILES utilities in \\DOS"
     echo ""

@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        flavor: [clone, pcdos]
 
     steps:
       - name: Checkout
@@ -34,62 +37,70 @@ jobs:
           make
           sudo make install prefix=/usr
 
-      - name: Build DOS 4
+      - name: Build DOS 4 (${{ matrix.flavor }})
         run: |
           cd v4.0
-          timeout 3600 ./mak.sh
+          timeout 3600 ./mak.sh --flavor=${{ matrix.flavor }}
 
-      - name: Create hard disk image
+      - name: Create hard disk image (${{ matrix.flavor }})
         run: timeout 300 ./v4.0/mkhdimg.sh
 
-      - name: Create floppy images (all sizes)
+      - name: Create floppy images (${{ matrix.flavor }})
         run: |
-          # Minimal floppies (system files only)
-          timeout 300 ./v4.0/mkhdimg.sh --floppy -o v4.0/dos4-boot-1440.img
+          # mkhdimg.sh auto-detects flavor from system files and names output accordingly
+          # Flavor prefix: dos4 for clone, pcdos4 for pcdos
+          PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "dos4")
+
+          # Minimal floppy (system files only)
+          timeout 300 ./v4.0/mkhdimg.sh --floppy -o v4.0/${PREFIX}-boot-1440.img
 
           # Full floppies with utilities
-          timeout 300 ./v4.0/mkhdimg.sh --floppy=360 --floppy-full -o v4.0/dos4-boot-360-full.img
-          timeout 300 ./v4.0/mkhdimg.sh --floppy=720 --floppy-full -o v4.0/dos4-boot-720-full.img
-          timeout 300 ./v4.0/mkhdimg.sh --floppy=1200 --floppy-full -o v4.0/dos4-boot-1200-full.img
-          timeout 300 ./v4.0/mkhdimg.sh --floppy=1440 --floppy-full -o v4.0/dos4-boot-1440-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=360 --floppy-full -o v4.0/${PREFIX}-boot-360-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=720 --floppy-full -o v4.0/${PREFIX}-boot-720-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=1200 --floppy-full -o v4.0/${PREFIX}-boot-1200-full.img
+          timeout 300 ./v4.0/mkhdimg.sh --floppy=1440 --floppy-full -o v4.0/${PREFIX}-boot-1440-full.img
 
-      - name: Boot test - HD image
+      - name: Boot test - HD image (${{ matrix.flavor }})
         run: |
+          PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "dos4")
           timeout 10 qemu-system-i386 \
-            -drive file=v4.0/dos4.raw.img,format=raw \
+            -drive file=v4.0/${PREFIX}.raw.img,format=raw \
             -boot c -nographic \
             2>&1 | tee /tmp/qemu-hd.log || true
           # Verify we got to DOS prompt
           grep -q 'C:\\>' /tmp/qemu-hd.log || grep -q 'Current date' /tmp/qemu-hd.log
 
-      - name: Boot test - 360KB floppy
+      - name: Boot test - 360KB floppy (${{ matrix.flavor }})
         run: |
+          PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "dos4")
           timeout 10 qemu-system-i386 \
-            -fda v4.0/dos4-boot-360-full.img \
+            -fda v4.0/${PREFIX}-boot-360-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-360.log || true
           grep -q 'Current date' /tmp/qemu-360.log
 
-      - name: Boot test - 720KB floppy
+      - name: Boot test - 720KB floppy (${{ matrix.flavor }})
         run: |
+          PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "dos4")
           timeout 10 qemu-system-i386 \
-            -fda v4.0/dos4-boot-720-full.img \
+            -fda v4.0/${PREFIX}-boot-720-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-720.log || true
           grep -q 'Current date' /tmp/qemu-720.log
 
-      - name: Boot test - 1.44MB floppy
+      - name: Boot test - 1.44MB floppy (${{ matrix.flavor }})
         run: |
+          PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "dos4")
           timeout 10 qemu-system-i386 \
-            -fda v4.0/dos4-boot-1440-full.img \
+            -fda v4.0/${PREFIX}-boot-1440-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-1440.log || true
           grep -q 'Current date' /tmp/qemu-1440.log
 
-      - name: Upload binaries
+      - name: Upload binaries (${{ matrix.flavor }})
         uses: actions/upload-artifact@v4
         with:
-          name: dos4-binaries
+          name: dos4-binaries-${{ matrix.flavor }}
           path: |
             v4.0/*.sys
             v4.0/*.com
@@ -100,11 +111,9 @@ jobs:
             v4.0/*.prt
             v4.0/*.hlp
 
-      - name: Upload disk images
+      - name: Upload disk images (${{ matrix.flavor }})
         uses: actions/upload-artifact@v4
         with:
-          name: dos4-disk-images
+          name: dos4-disk-images-${{ matrix.flavor }}
           path: |
-            v4.0/dos4.img
-            v4.0/dos4.raw.img
-            v4.0/dos4-boot-*.img
+            v4.0/*.img
