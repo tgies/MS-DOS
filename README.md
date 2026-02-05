@@ -17,6 +17,57 @@ The source files in this repo are for historical reference and will be kept stat
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).  For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
+# Building MS-DOS 4.0
+
+This fork includes build scripts and CI workflows for MS-DOS 4.0. The build produces bootable disk images.
+
+## Requirements
+
+- dosemu2
+- mtools
+- mkfatimage16 (from dosemu2)
+
+## Quick Start
+
+```bash
+cd v4.0
+./mak.sh              # Build DOS 4 (takes ~10-15 minutes)
+./mkhdimg.sh          # Create 64MB hard disk image
+./mkhdimg.sh --floppy # Create 1.44MB boot floppy
+```
+
+## Build Flavors
+
+The source code supports three build configurations via `src/INC/VERSION.INC`:
+
+| Flavor | IBMVER | IBMCOPYRIGHT | System Files | Description |
+|--------|--------|--------------|--------------|-------------|
+| **Clone** | TRUE | FALSE | IO.SYS, MSDOS.SYS | OEM version for IBM-compatible PCs (default) |
+| IBM PC-DOS | TRUE | TRUE | IBMBIO.COM, IBMDOS.COM | Official IBM version |
+| MS-DOS (portable) | FALSE | FALSE | IO.SYS, MSDOS.SYS | For non-IBM-compatible hardware |
+
+The default build produces the **Clone** flavor, which is what OEMs like Compaq and HP shipped as "MS-DOS 4.01" on their IBM-compatible PCs. This uses IBM PC hardware assumptions but MS-DOS branding.
+
+## Disk Image Options
+
+```bash
+# Hard disk images
+./mkhdimg.sh                    # 64MB FAT16 image
+./mkhdimg.sh --size 32          # 32MB image
+
+# Floppy images (all sizes)
+./mkhdimg.sh --floppy           # 1.44MB minimal (system files only)
+./mkhdimg.sh --floppy=360 --floppy-full   # 360KB with utilities
+./mkhdimg.sh --floppy=720 --floppy-full   # 720KB with utilities
+./mkhdimg.sh --floppy=1200 --floppy-full  # 1.2MB with utilities
+./mkhdimg.sh --floppy=1440 --floppy-full  # 1.44MB with utilities
+```
+
+## Known Limitations
+
+- **DOS Shell not included**: The DOS Shell (DOSSHELL) source code was not open-sourced, so SELECT.EXE (the installer) cannot be built.
+- **MS-DOS portable build**: The `IBMVER=FALSE` configuration may have build issues (needs investigation).
+
 # Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
