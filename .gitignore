@@ -1,0 +1,37 @@
+# Build artifacts (dosemu/assembler intermediate files)
+*.cl[0-9]
+*.cl[a-z]
+*.cod
+*.bak
+*.idx
+
+# Build outputs in source directories (keep only in root build output)
+v4.0/src/**/*.bin
+v4.0/src/**/*.exe
+v4.0/src/**/*.com
+v4.0/src/**/*.sys
+v4.0/src/**/*.obj
+v4.0/src/**/*.map
+v4.0/src/**/*.lst
+
+# Generated data files
+v4.0/src/**/*.dat
+v4.0/src/**/*.hlp
+v4.0/src/**/*.inf
+
+# Editor/IDE artifacts
+*.swp
+*~
+.vscode/
+.idea/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Generated include files
+v4.0/src/CMD/FDISK/fdboot.inc
+v4.0/src/CMD/FDISK/fdiskm.c
+
+# Generated message files (lowercase from uppercase .MSG)
+v4.0/src/MESSAGES/usa-ms.msg
