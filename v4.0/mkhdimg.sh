@@ -332,6 +332,15 @@ if $FLOPPY; then
         printf '@ECHO OFF\r\n' > "$STAGING/REAL_AE.BAT"
         printf 'PROMPT $p$g\r\n' >> "$STAGING/REAL_AE.BAT"
         printf 'PATH A:\\DOS\r\n' >> "$STAGING/REAL_AE.BAT"
+
+        # Create CONFIG.SYS for the target floppy (loads ANSI.SYS if present)
+        printf 'FILES=20\r\n' > "$STAGING/REAL_CF.SYS"
+        printf 'BUFFERS=10\r\n' >> "$STAGING/REAL_CF.SYS"
+        printf 'BREAK=ON\r\n' >> "$STAGING/REAL_CF.SYS"
+        # Only add DEVICE= if ANSI.SYS was included
+        if [ -f "$STAGING/DOS/ANSI.SYS" ]; then
+            printf 'DEVICE=A:\\DOS\\ANSI.SYS\r\n' >> "$STAGING/REAL_CF.SYS"
+        fi
     fi
 else
     # Hard disk image: full file layout
@@ -440,8 +449,9 @@ if $FLOPPY; then
                 fi
             done
         fi
-        # Copy AUTOEXEC.BAT to floppy root
+        # Copy AUTOEXEC.BAT and CONFIG.SYS to floppy root
         printf 'COPY C:\\REAL_AE.BAT A:\\AUTOEXEC.BAT > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
+        printf 'COPY C:\\REAL_CF.SYS A:\\CONFIG.SYS > NUL\r\n' >> "$STAGING/AUTOEXEC.BAT"
     fi
 
     printf 'ECHO Done! Floppy image is ready.\r\n' >> "$STAGING/AUTOEXEC.BAT"
