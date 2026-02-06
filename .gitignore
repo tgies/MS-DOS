@@ -4,6 +4,7 @@
 *.cod
 *.bak
 *.idx
+*.img
 
 # Build outputs in source directories (keep only in root build output)
 v4.0/src/**/*.bin
