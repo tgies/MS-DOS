@@ -5,7 +5,7 @@
 # Produces bootable disk images from the compiled binaries in this directory.
 #
 # Image types:
-#   (default)        FAT16 hard disk image (bootable in QEMU, dosemu, VirtualBox)
+#   (default)        FAT16 hard disk image (raw + dosemu format)
 #   --floppy         Minimal 1.44MB FAT12 boot floppy (system files only)
 #   --floppy=SIZE    Floppy of specified size (360, 720, 1200, 1440)
 #   --floppy-full    Include utilities that fit on the floppy
@@ -523,13 +523,13 @@ if $FLOPPY; then
     echo "To boot with QEMU:"
     echo "  qemu-system-i386 -fda $OUTPUT"
 else
-    # The dosemu hdimage format is a raw disk image with a 128-byte header.
-    # Output both: the dosemu image as-is, and a raw image with the header stripped
-    # for use in QEMU, VirtualBox, bochs, etc.
-    cp "$TMPDIR/target.img" "$OUTPUT"
+    # The dosemu hdimage format has a 128-byte proprietary header.
+    # Output both: a raw image (header stripped) for QEMU/VirtualBox/bochs,
+    # and the dosemu image with a -dosemu suffix.
+    dd if="$TMPDIR/target.img" of="$OUTPUT" bs=128 skip=1 2>/dev/null
 
-    RAW_OUTPUT="${OUTPUT%.img}.raw.img"
-    dd if="$TMPDIR/target.img" of="$RAW_OUTPUT" bs=128 skip=1 2>/dev/null
+    DOSEMU_OUTPUT="${OUTPUT%.img}-dosemu.img"
+    cp "$TMPDIR/target.img" "$DOSEMU_OUTPUT"
 
     NUM_FILES="$(ls "$STAGING/DOS/" | wc -l)"
 
@@ -540,12 +540,12 @@ else
     echo "  Size:     $(( SIZE_KB / 1024 ))MB"
     echo "  Files:    $NUM_FILES utilities in \\DOS"
     echo ""
-    echo "  $OUTPUT         (dosemu hdimage format)"
-    echo "  $RAW_OUTPUT     (raw disk image)"
-    echo ""
-    echo "To boot with dosemu:"
-    echo "  dosemu -f <(echo '\$_hdimage = \"$OUTPUT\"')"
+    echo "  $OUTPUT             (raw disk image)"
+    echo "  $DOSEMU_OUTPUT     (dosemu hdimage format)"
     echo ""
     echo "To boot with QEMU:"
-    echo "  qemu-system-i386 -hda $RAW_OUTPUT"
+    echo "  qemu-system-i386 -hda $OUTPUT"
+    echo ""
+    echo "To boot with dosemu:"
+    echo "  dosemu -f <(echo '\$_hdimage = \"$DOSEMU_OUTPUT\"')"
 fi

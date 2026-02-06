@@ -6,6 +6,15 @@ on:
       - 'v4.0/**'
       - '.github/workflows/build.yml'
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create a GitHub Release'
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag (default: 4.0-{short_sha})'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -67,7 +76,7 @@ jobs:
         run: |
           PREFIX=$([[ "${{ matrix.flavor }}" == "pcdos" ]] && echo "pcdos4" || echo "msdos4")
           timeout 10 qemu-system-i386 \
-            -drive file=v4.0/${PREFIX}.raw.img,format=raw \
+            -drive file=v4.0/${PREFIX}.img,format=raw \
             -boot c -nographic \
             2>&1 | tee /tmp/qemu-hd.log || true
           # Verify we got to DOS prompt
@@ -122,7 +131,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}-hd
-          path: v4.0/${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}.raw.img
+          path: v4.0/${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}.img
+
+      - name: Upload HD image - dosemu (${{ matrix.flavor }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}-hd-dosemu
+          path: v4.0/${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}-dosemu.img
 
       # Minimal floppies (system files only)
       - name: Upload 360KB floppy - minimal (${{ matrix.flavor }})
@@ -173,3 +188,73 @@ jobs:
         with:
           name: ${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}-floppy-1440-full
           path: v4.0/${{ matrix.flavor == 'pcdos' && 'pcdos4' || 'msdos4' }}-boot-1440-full.img
+
+  release:
+    needs: build
+    if: inputs.release == true
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Set release tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.release_tag }}" ]; then
+            echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=4.0-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package release assets
+        run: |
+          mkdir -p release
+
+          for FLAVOR in msdos pcdos; do
+            if [ "$FLAVOR" = "pcdos" ]; then
+              PREFIX="pcdos4"
+            else
+              PREFIX="msdos4"
+            fi
+
+            # Zip binaries
+            if [ -d "artifacts/${PREFIX}-binaries" ]; then
+              cd "artifacts/${PREFIX}-binaries"
+              zip -r "../../release/${PREFIX}-binaries.zip" .
+              cd ../..
+            fi
+
+            # Copy HD images
+            [ -f "artifacts/${PREFIX}-hd/${PREFIX}.img" ] && \
+              cp "artifacts/${PREFIX}-hd/${PREFIX}.img" "release/${PREFIX}.img"
+            [ -f "artifacts/${PREFIX}-hd-dosemu/${PREFIX}-dosemu.img" ] && \
+              cp "artifacts/${PREFIX}-hd-dosemu/${PREFIX}-dosemu.img" "release/${PREFIX}-dosemu.img"
+
+            # Copy floppy images
+            for SIZE in 360 720 1200 1440; do
+              [ -f "artifacts/${PREFIX}-floppy-${SIZE}-minimal/${PREFIX}-boot-${SIZE}.img" ] && \
+                cp "artifacts/${PREFIX}-floppy-${SIZE}-minimal/${PREFIX}-boot-${SIZE}.img" "release/"
+              [ -f "artifacts/${PREFIX}-floppy-${SIZE}-full/${PREFIX}-boot-${SIZE}-full.img" ] && \
+                cp "artifacts/${PREFIX}-floppy-${SIZE}-full/${PREFIX}-boot-${SIZE}-full.img" "release/"
+            done
+          done
+
+          echo "Release assets:"
+          ls -la release/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "MS-DOS 4 (${{ steps.tag.outputs.tag }})" \
+            --generate-notes \
+            release/*
