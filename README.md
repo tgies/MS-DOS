@@ -47,10 +47,16 @@ The source code supports multiple build configurations. Use the `--flavor` flag:
 
 | Flavor | System Files | Description |
 |--------|--------------|-------------|
-| **msdos** | IO.SYS, MSDOS.SYS | OEM MS-DOS for IBM-compatible PCs (default) |
-| **pcdos** | IBMBIO.COM, IBMDOS.COM | IBM PC-DOS |
+| **msdos** | IO.SYS, MSDOS.SYS | OEM MS-DOS for IBM-compatible PCs (default, recommended) |
+| **pcdos** | IBMBIO.COM, IBMDOS.COM | IBM PC-DOS (for historical accuracy) |
 
-Both flavors include IBM PC hardware-specific code (INT 10H video BIOS, 8259 PIC, PCjr ROM cartridge support). The difference is branding and system file names.
+Both flavors include IBM PC hardware-specific code (INT 10H video BIOS, 8259 PIC, PCjr ROM cartridge support).
+
+**Important:** The **msdos** flavor contains more bug fixes than **pcdos**. Microsoft could push fixes to OEM MS-DOS faster than IBM's approval process allowed for PC-DOS. Notable differences:
+- DOS kernel INT 24 (critical error) handling fix
+- FDISK integer overflow protection for large disks
+- Larger EMS buffers in FASTOPEN
+- Better input validation in EXE2BIN
 
 The default **msdos** flavor is what OEMs like Compaq, Dell, and HP shipped as "MS-DOS" on their IBM-compatible PCs.
 
