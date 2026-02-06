@@ -196,7 +196,15 @@ fi
 
 # Create temporary working directory
 TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+DOSEMU_PID=""
+cleanup() {
+    if [[ -n "$DOSEMU_PID" ]] && kill -0 "$DOSEMU_PID" 2>/dev/null; then
+        kill "$DOSEMU_PID" 2>/dev/null
+        wait "$DOSEMU_PID" 2>/dev/null || true
+    fi
+    rm -rf "$TMPDIR"
+}
+trap cleanup EXIT
 
 STAGING="$TMPDIR/staging"
 mkdir -p "$STAGING/DOS"
@@ -496,7 +504,10 @@ fi
 
 # Run dosemu in dumb terminal mode
 # TERM=dumb prevents dosemu from enabling xterm mouse tracking
-TERM=dumb dosemu -f "$TMPDIR/dosemurc" -dumb -td -kt < /dev/null
+TERM=dumb dosemu -f "$TMPDIR/dosemurc" -dumb -td < /dev/null &
+DOSEMU_PID=$!
+wait "$DOSEMU_PID"
+DOSEMU_PID=""
 
 # --- Phase 4: Finalize ---
 

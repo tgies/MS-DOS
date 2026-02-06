@@ -77,8 +77,13 @@ else
     sed -i 's/^IBMCOPYRIGHT EQU[[:space:]]*TRUE/IBMCOPYRIGHT EQU   FALSE/' "$VERSION_INC"
 fi
 
-# Cleanup function to restore VERSION.INC
+# Cleanup function to restore VERSION.INC and kill lingering dosemu
+DOSEMU_PID=""
 cleanup() {
+    if [[ -n "$DOSEMU_PID" ]] && kill -0 "$DOSEMU_PID" 2>/dev/null; then
+        kill "$DOSEMU_PID" 2>/dev/null
+        wait "$DOSEMU_PID" 2>/dev/null || true
+    fi
     if [[ -f "$VERSION_INC.bak" ]]; then
         mv "$VERSION_INC.bak" "$VERSION_INC"
     fi
@@ -108,7 +113,10 @@ fi
 
 # TERM=dumb prevents dosemu from enabling xterm mouse tracking
 # (it checks terminfo for "Km" capability which dumb lacks)
-TERM=dumb "$DOSEMU" -dumb -td -kt < /dev/null -K "$PWD" -E "mak.bat"
+TERM=dumb "$DOSEMU" -dumb -td < /dev/null -K "$PWD" -E "mak.bat" &
+DOSEMU_PID=$!
+wait "$DOSEMU_PID"
+DOSEMU_PID=""
 
 # Post-build: rename system files for PC-DOS flavor
 # (CPY.BAT always outputs io.sys/msdos.sys - we rename here to avoid modifying source)

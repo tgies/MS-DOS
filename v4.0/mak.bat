@@ -5,6 +5,7 @@
 cd src
 call setenv.bat
 nmake
-if errorlevel 1 goto :eof
+if errorlevel 1 goto :done
 call cpy.bat ..\
-:eof
+:done
+exitemu
