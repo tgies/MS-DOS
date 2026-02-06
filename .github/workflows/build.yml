@@ -79,8 +79,12 @@ jobs:
             -drive file=v4.0/${PREFIX}.img,format=raw \
             -boot c -nographic \
             2>&1 | tee /tmp/qemu-hd.log || true
-          # Verify we got to DOS prompt
-          grep -q 'C:\\>' /tmp/qemu-hd.log || grep -q 'Current date' /tmp/qemu-hd.log
+          # QEMU -nographic translates VGA text to ANSI escape sequences. Cursor
+          # positioning codes can non-deterministically split prompt text across
+          # lines (e.g. "A" + ESC[9;2H + ":\>"). Strip escapes and newlines to
+          # reconstruct what the VGA screen would show, then check for DOS prompt.
+          sed -z 's/\x1b\[[0-9;]*[A-Za-z]//g; s/\n//g' /tmp/qemu-hd.log \
+            | grep -qE 'Current date|C:\\>'
 
       - name: Boot test - 360KB floppy (${{ matrix.flavor }})
         run: |
@@ -89,8 +93,8 @@ jobs:
             -fda v4.0/${PREFIX}-boot-360-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-360.log || true
-          # Full floppies have AUTOEXEC.BAT which skips date prompt, check for either
-          grep -qE 'Current date|A:\\>' /tmp/qemu-360.log
+          sed -z 's/\x1b\[[0-9;]*[A-Za-z]//g; s/\n//g' /tmp/qemu-360.log \
+            | grep -qE 'Current date|A:\\>'
 
       - name: Boot test - 720KB floppy (${{ matrix.flavor }})
         run: |
@@ -99,8 +103,8 @@ jobs:
             -fda v4.0/${PREFIX}-boot-720-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-720.log || true
-          # Full floppies have AUTOEXEC.BAT which skips date prompt, check for either
-          grep -qE 'Current date|A:\\>' /tmp/qemu-720.log
+          sed -z 's/\x1b\[[0-9;]*[A-Za-z]//g; s/\n//g' /tmp/qemu-720.log \
+            | grep -qE 'Current date|A:\\>'
 
       - name: Boot test - 1.44MB floppy (${{ matrix.flavor }})
         run: |
@@ -109,8 +113,8 @@ jobs:
             -fda v4.0/${PREFIX}-boot-1440-full.img \
             -boot a -nographic \
             2>&1 | tee /tmp/qemu-1440.log || true
-          # Full floppies have AUTOEXEC.BAT which skips date prompt, check for either
-          grep -qE 'Current date|A:\\>' /tmp/qemu-1440.log
+          sed -z 's/\x1b\[[0-9;]*[A-Za-z]//g; s/\n//g' /tmp/qemu-1440.log \
+            | grep -qE 'Current date|A:\\>'
 
       - name: Upload binaries (${{ matrix.flavor }})
         uses: actions/upload-artifact@v4
