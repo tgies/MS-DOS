@@ -78,6 +78,7 @@ The default **msdos** flavor is what OEMs like Compaq, Dell, and HP shipped as "
 ## Known Limitations
 
 - **DOS Shell not included**: The DOS Shell (DOSSHELL) source code was not open-sourced, so SELECT.EXE (the installer) cannot be built.
+- **PC-DOS branding incomplete**: The `--flavor=pcdos` build uses IBM system file names (IBMBIO.COM, IBMDOS.COM) but still displays "MS-DOS" in VER and the startup banner. This is because IBM's message file (`usa-ibm.msg` or similar) was not open-sourced—only the Microsoft-branded `usa-ms.msg` was released.
 - **Non-IBM-compatible build**: A third configuration (`IBMVER=FALSE`) exists in the source for non-IBM-compatible hardware, but it doesn't build successfully.
 
 # Trademarks
