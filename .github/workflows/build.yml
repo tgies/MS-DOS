@@ -33,19 +33,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dosemu2 mtools qemu-system-x86
 
-      # Workaround for https://github.com/dosemu2/comcom64/pull/117
-      # Remove once merged and released in dosemu2
-      - name: Build patched comcom64
-        run: |
-          sudo add-apt-repository -y ppa:stsp-0/thunk-gen
-          sudo apt-get update
-          sudo apt-get install -y thunk-gen dj64-dev pkgconf nasm
-          git clone --depth 1 --branch fix-expand-pluses-trailing-space \
-            https://github.com/tgies/comcom64.git /tmp/comcom64
-          cd /tmp/comcom64
-          make
-          sudo make install prefix=/usr
-
       - name: Build DOS 4 (${{ matrix.flavor }})
         run: |
           cd v4.0
